@@ -127,16 +127,20 @@ uv run pytest tests/test_storage.py -v      # Storage layer tests
 
 ### What You'd Change for Production
 
-1. **Persistent Database**: Replace in-memory storage with PostgreSQL or similar, using SQLAlchemy ORM
+1. **Persistent Database**: Replace in-memory storage with PostgreSQL or similar, using SQLAlchemy ORM. Would include the following tables:
+   - **User table**: Store user accounts with authentication credentials and roles
+   - **Provider table**: Store provider/clinician information
+   - **Patient table**: Store patient information (PHI)
+   - **Organization table**: Store organization information, with users belonging to organizations
 2. **Real Authentication**: Integrate with OAuth2 provider, LDAP, or identity management service
 3. **Enhanced PHI Detection**: Integrate [DataFog](https://github.com/DataFog/datafog-python) or similar library for more comprehensive PII detection
 4. **Encryption at Rest**: Encrypt PHI fields in the database using field-level encryption
 5. **Rate Limiting**: Add rate limiting to prevent abuse and DDoS attacks
 6. **Caching**: Add Redis for JWT token validation caching and frequently accessed data
-7. **Audit Trail Separation**: Move audit logs to a separate, append-only system (e.g., dedicated audit database or log aggregation service)
+7. **Audit Trail Separation**: Move audit logs to a separate, append-only system (e.g., dedicated audit database or log aggregation service). Likely event driven (write to kafka/pubsub/redis)
 8. **API Versioning**: Implement proper API versioning strategy for backward compatibility
 9. **Monitoring & Alerting**: Add comprehensive logging, metrics (Prometheus), and alerting (e.g., for suspicious access patterns)
-12. **HTTPS Only**: Enforce HTTPS in production with proper certificate management
+
 
 ## Testing Philosophy
 
