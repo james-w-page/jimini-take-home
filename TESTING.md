@@ -1,5 +1,15 @@
 # Testing Strategy
 
+**Unit Tests:**
+```bash
+uv run pytest
+```
+
+**Integration Tests:**
+```bash
+uv run ./scripts/test_api.py
+```
+
 ## What I Tested
 
 - **PHI Redaction**: Critical for HIPAA compliance - ensures patient identifiers, SSNs, emails, and other PHI never appear in logs or error messages. Tests cover pattern matching, dictionary field removal, UUID scrubbing, and edge cases like nested structures and empty values.
