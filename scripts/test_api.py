@@ -4,8 +4,10 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
+from uuid import UUID
 import httpx
 from app.models.encounter import EncounterType
+from app.core.constants import get_patient_ids, get_provider_ids
 
 
 BASE_URL = "http://localhost:8000"
@@ -152,8 +154,17 @@ async def main():
         # Step 2: Create 10 encounters for 4 patients
         print("\n📝 Creating 10 encounters for 4 patients...")
         
-        patients = ["pat_001", "pat_002", "pat_003", "pat_004"]
-        providers = ["prov_001", "prov_002"]
+        # Get known patient and provider IDs
+        all_patients = get_patient_ids()
+        all_providers = get_provider_ids()
+        
+        # Use first 4 patients and first 2 providers
+        patients = all_patients[:4]
+        providers = all_providers[:2]
+        
+        print(f"  Using patients: {len(patients)} known patients")
+        print(f"  Using providers: {len(providers)} known providers")
+        
         encounter_types = [
             EncounterType.INITIAL_ASSESSMENT,
             EncounterType.FOLLOW_UP,
@@ -198,7 +209,8 @@ async def main():
         # Get a few specific encounters
         print("\n  Getting specific encounters:")
         for i, encounter in enumerate(created_encounters[:3]):
-            retrieved = await get_encounter(client, token, encounter["encounter_id"])
+            encounter_uuid = UUID(encounter["encounter_id"])
+            retrieved = await get_encounter(client, token, encounter_uuid)
             if retrieved:
                 print(f"    ✅ Retrieved encounter {retrieved['encounter_id']}")
                 print(f"       Patient: {retrieved['patient_id']}, Type: {retrieved['encounter_type']}")
@@ -207,12 +219,13 @@ async def main():
         print("\n  Testing filters:")
         
         # Filter by patient
-        test_patient = patients[0]
+        test_patient = UUID(patients[0])
         test_encounter = created_encounters[0]
+        test_encounter_uuid = UUID(test_encounter["encounter_id"])
         filtered = await get_encounter(
             client,
             token,
-            test_encounter["encounter_id"],
+            test_encounter_uuid,
             patient_id=test_patient,
         )
         if filtered:
@@ -223,7 +236,7 @@ async def main():
         filtered = await get_encounter(
             client,
             token,
-            test_encounter["encounter_id"],
+            test_encounter_uuid,
             encounter_type=test_type.value,
         )
         if filtered:
@@ -237,7 +250,7 @@ async def main():
         print(f"  ✅ Retrieved {len(all_audit)} audit events")
         
         # Get audit for a specific encounter
-        test_encounter_id = created_encounters[0]["encounter_id"]
+        test_encounter_id = str(created_encounters[0]["encounter_id"])
         encounter_audit = await get_audit_trail(
             client,
             token,

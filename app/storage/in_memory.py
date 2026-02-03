@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
+from uuid import UUID
 from app.models.encounter import Encounter, EncounterCreate, EncounterFilter
 from app.models.audit import AuditEvent, AuditFilter
 
@@ -19,11 +20,11 @@ class InMemoryStorage:
     def __init__(self):
         """Initialize storage with empty dictionaries"""
         # Primary storage: encounter_id -> Encounter
-        self._encounters: Dict[str, Encounter] = {}
+        self._encounters: Dict[UUID, Encounter] = {}
         
         # Indexes for faster lookups
-        self._encounters_by_patient: Dict[str, List[str]] = {}  # patient_id -> [encounter_ids]
-        self._encounters_by_provider: Dict[str, List[str]] = {}  # provider_id -> [encounter_ids]
+        self._encounters_by_patient: Dict[UUID, List[UUID]] = {}  # patient_id -> [encounter_ids]
+        self._encounters_by_provider: Dict[UUID, List[UUID]] = {}  # provider_id -> [encounter_ids]
         
         # Audit trail storage
         self._audit_events: Dict[str, AuditEvent] = {}
@@ -42,7 +43,7 @@ class InMemoryStorage:
         Returns:
             Created Encounter with generated ID
         """
-        encounter_id = f"enc_{uuid.uuid4().hex[:12]}"
+        encounter_id = uuid.uuid4()
         now = datetime.utcnow()
         
         encounter = Encounter(
@@ -70,7 +71,7 @@ class InMemoryStorage:
         
         return encounter
 
-    def get_encounter(self, encounter_id: str) -> Optional[Encounter]:
+    def get_encounter(self, encounter_id: UUID) -> Optional[Encounter]:
         """
         Get an encounter by ID.
         
@@ -122,7 +123,7 @@ class InMemoryStorage:
         self,
         event_type: str,
         resource_type: str,
-        resource_id: str,
+        resource_id: str | UUID,
         user_id: str,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
@@ -146,11 +147,14 @@ class InMemoryStorage:
         event_id = f"audit_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
         
+        # Convert resource_id to string if it's a UUID
+        resource_id_str = str(resource_id) if isinstance(resource_id, UUID) else resource_id
+        
         event = AuditEvent(
             event_id=event_id,
             event_type=event_type,
             resource_type=resource_type,
-            resource_id=resource_id,
+            resource_id=resource_id_str,
             user_id=user_id,
             timestamp=now,
             ip_address=ip_address,
@@ -161,10 +165,10 @@ class InMemoryStorage:
         # Store in primary storage
         self._audit_events[event_id] = event
         
-        # Update index
-        if resource_id not in self._audit_by_resource:
-            self._audit_by_resource[resource_id] = []
-        self._audit_by_resource[resource_id].append(event_id)
+        # Update index (use string version for indexing)
+        if resource_id_str not in self._audit_by_resource:
+            self._audit_by_resource[resource_id_str] = []
+        self._audit_by_resource[resource_id_str].append(event_id)
         
         return event
 

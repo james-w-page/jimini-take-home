@@ -2,11 +2,13 @@
 
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 from fastapi import APIRouter, HTTPException, status, Depends, Request, Query
 from app.api.deps import get_current_user, get_client_ip
 from app.models.encounter import Encounter, EncounterCreate, EncounterFilter, EncounterType
 from app.storage.in_memory import storage
 from app.core.phi_redaction import sanitize_error_message, log_safely
+from app.core.constants import is_valid_patient_id, is_valid_provider_id
 import logging
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
@@ -27,6 +29,28 @@ async def create_encounter(
     """
     try:
         user_id = current_user["user_id"]
+        
+        # Validate patient and provider IDs are in known lists
+        patient_id_str = str(encounter_data.patient_id)
+        provider_id_str = str(encounter_data.provider_id)
+        
+        if not is_valid_patient_id(patient_id_str):
+            error_msg = f"Invalid patient_id. Patient ID must be a valid UUID from the known patients list."
+            safe_msg = sanitize_error_message(error_msg)
+            log_safely(logger, logging.WARNING, "Invalid patient_id provided: %s", patient_id_str)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=safe_msg,
+            )
+        
+        if not is_valid_provider_id(provider_id_str):
+            error_msg = f"Invalid provider_id: {provider_id_str}. Provider ID must be a valid UUID from the known providers list."
+            safe_msg = sanitize_error_message(error_msg)
+            log_safely(logger, logging.WARNING, "Invalid provider_id provided: %s", provider_id_str)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=safe_msg,
+            )
         
         # Create encounter
         encounter = storage.create_encounter(encounter_data, created_by=user_id)
@@ -55,6 +79,9 @@ async def create_encounter(
         
         return encounter
     
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors, etc.)
+        raise
     except ValueError as e:
         # Validation error from Pydantic
         error_msg = f"Validation error: {str(e)}"
@@ -77,11 +104,11 @@ async def create_encounter(
 
 @router.get("/{encounter_id}", response_model=Encounter)
 async def get_encounter(
-    encounter_id: str,
+    encounter_id: UUID,
     request: Request,
     current_user: dict = Depends(get_current_user),
-    patient_id: Optional[str] = Query(None, description="Filter by patient ID"),
-    provider_id: Optional[str] = Query(None, description="Filter by provider ID"),
+    patient_id: Optional[UUID] = Query(None, description="Filter by patient ID"),
+    provider_id: Optional[UUID] = Query(None, description="Filter by provider ID"),
     encounter_type: Optional[EncounterType] = Query(None, description="Filter by encounter type"),
     start_date: Optional[datetime] = Query(None, description="Start of date range (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End of date range (ISO format)"),

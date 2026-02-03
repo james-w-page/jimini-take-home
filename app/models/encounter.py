@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Any, Dict, Optional
+from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
@@ -19,8 +20,8 @@ class EncounterType(str, Enum):
 class EncounterBase(BaseModel):
     """Base encounter model with common fields"""
 
-    patient_id: str = Field(..., description="Patient identifier (PHI)", min_length=1)
-    provider_id: str = Field(..., description="Provider/therapist identifier", min_length=1)
+    patient_id: UUID = Field(..., description="Patient identifier (PHI) - must be a valid UUID")
+    provider_id: UUID = Field(..., description="Provider/therapist identifier - must be a valid UUID")
     encounter_date: datetime = Field(..., description="Date and time of the encounter")
     encounter_type: EncounterType = Field(..., description="Type of encounter")
     clinical_data: Dict[str, Any] = Field(
@@ -28,13 +29,18 @@ class EncounterBase(BaseModel):
         description="Flexible JSON structure for notes, observations, assessments",
     )
 
-    @field_validator("patient_id", "provider_id")
+    @field_validator("patient_id", "provider_id", mode="before")
     @classmethod
-    def validate_ids(cls, v: str) -> str:
-        """Validate that IDs are not empty and don't contain only whitespace"""
-        if not v or not v.strip():
-            raise ValueError("ID cannot be empty or whitespace only")
-        return v.strip()
+    def validate_uuid_format(cls, v) -> UUID:
+        """Validate that IDs are valid UUIDs"""
+        if isinstance(v, str):
+            try:
+                return UUID(v)
+            except ValueError:
+                raise ValueError(f"Invalid UUID format: {v}")
+        if isinstance(v, UUID):
+            return v
+        raise ValueError(f"ID must be a UUID, got {type(v)}")
 
     @field_validator("clinical_data")
     @classmethod
@@ -54,15 +60,15 @@ class EncounterCreate(EncounterBase):
 class Encounter(EncounterBase):
     """Full encounter model with generated fields"""
 
-    encounter_id: str = Field(..., description="Unique encounter identifier")
+    encounter_id: UUID = Field(..., description="Unique encounter identifier (UUID)")
     created_at: datetime = Field(..., description="When the record was created")
     updated_at: datetime = Field(..., description="When the record was last updated")
     created_by: str = Field(..., description="User who created the record")
 
     model_config = {"json_schema_extra": {"example": {
-        "encounter_id": "enc_123456",
-        "patient_id": "pat_789",
-        "provider_id": "prov_456",
+        "encounter_id": "550e8400-e29b-41d4-a716-446655440010",
+        "patient_id": "550e8400-e29b-41d4-a716-446655440000",
+        "provider_id": "750e8400-e29b-41d4-a716-446655440000",
         "encounter_date": "2024-01-15T10:30:00Z",
         "encounter_type": "initial_assessment",
         "clinical_data": {
@@ -79,11 +85,26 @@ class Encounter(EncounterBase):
 class EncounterFilter(BaseModel):
     """Model for filtering encounters"""
 
-    patient_id: Optional[str] = Field(None, description="Filter by patient ID")
-    provider_id: Optional[str] = Field(None, description="Filter by provider ID")
+    patient_id: Optional[UUID] = Field(None, description="Filter by patient ID")
+    provider_id: Optional[UUID] = Field(None, description="Filter by provider ID")
     encounter_type: Optional[EncounterType] = Field(None, description="Filter by encounter type")
     start_date: Optional[datetime] = Field(None, description="Start of date range")
     end_date: Optional[datetime] = Field(None, description="End of date range")
+
+    @field_validator("patient_id", "provider_id", mode="before")
+    @classmethod
+    def validate_uuid_optional(cls, v) -> Optional[UUID]:
+        """Validate that IDs are valid UUIDs if provided"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return UUID(v)
+            except ValueError:
+                raise ValueError(f"Invalid UUID format: {v}")
+        if isinstance(v, UUID):
+            return v
+        raise ValueError(f"ID must be a UUID, got {type(v)}")
 
     @field_validator("end_date")
     @classmethod
