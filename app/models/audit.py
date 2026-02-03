@@ -6,6 +6,12 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 
+EVENT_TYPES = [
+    "encounter_created",
+    "encounter_accessed",
+]
+
+
 class AuditEvent(BaseModel):
     """Model for audit trail events"""
 
