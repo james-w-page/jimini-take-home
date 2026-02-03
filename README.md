@@ -123,6 +123,10 @@ uv run ruff check app tests
 3. **Input Validation**: Comprehensive Pydantic validation at API boundaries
 4. **Audit Trail**: Complete tracking of who accessed what data and when
 
+## Future Improvements
+
+- **TODO**: Consider integrating [DataFog](https://github.com/DataFog/datafog-python) for enhanced PII detection and scrubbing. DataFog provides lightning-fast PII detection (190x performance advantage) with support for emails, SSNs, names, and more. It offers multiple detection engines (regex, spaCy, GLiNER) and could enhance the current PHI redaction implementation with more comprehensive entity recognition.
+
 ## License
 
 MIT

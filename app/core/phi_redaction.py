@@ -63,7 +63,18 @@ class PHIRedactingFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format log record and redact PHI"""
         original_msg = super().format(record)
-        return redact_phi(original_msg)
+        # Redact PHI and UUIDs from the formatted message
+        redacted_msg = redact_phi(original_msg)
+        
+        # Also redact from exception info if present
+        if record.exc_info and record.exc_text:
+            # Redact UUIDs from exception text
+            redacted_exc = redact_phi(record.exc_text)
+            # Replace the exception text in the message
+            if record.exc_text in redacted_msg:
+                redacted_msg = redacted_msg.replace(record.exc_text, redacted_exc)
+        
+        return redacted_msg
 
 
 def redact_phi(text: str, approved_uuid_fields: set = None) -> str:
@@ -198,10 +209,21 @@ def log_safely(logger: logging.Logger, level: int, message: str, *args, **kwargs
     
     # Process kwargs - separate approved UUID fields from others
     approved_fields = {}
-    other_kwargs = {}
+    standard_logging_kwargs = {}
+    
+    # Standard logging kwargs that are allowed
+    standard_kwargs = {"exc_info", "extra", "stack_info", "stacklevel"}
     
     for key, value in kwargs.items():
         key_lower = key.lower()
+        
+        # Handle standard logging kwargs
+        if key in standard_kwargs:
+            if key == "exc_info" and exc_info:
+                # exc_info will be handled separately
+                continue
+            standard_logging_kwargs[key] = value
+            continue
         
         # Remove PHI fields completely - don't include them in logs
         if any(phi_field.lower() in key_lower for phi_field in PHI_FIELDS):
@@ -225,15 +247,18 @@ def log_safely(logger: logging.Logger, level: int, message: str, *args, **kwargs
             else:
                 approved_fields[key] = str(value)
         else:
-            # Not an approved field - scrub UUIDs
-            if isinstance(value, str):
-                other_kwargs[key] = redact_phi(value)
-            elif isinstance(value, dict):
-                other_kwargs[key] = redact_dict(value)
-            elif isinstance(value, (UUID,)):
-                other_kwargs[key] = "[REDACTED-UUID]"
-            else:
-                other_kwargs[key] = redact_phi(str(value))
+            # Not an approved field - scrub UUIDs and include in message if needed
+            # For non-approved fields with UUIDs, we scrub them
+            # Since Python's logger doesn't accept arbitrary kwargs, we'll note them in the message
+            if isinstance(value, (UUID,)):
+                # UUID in non-approved field - note in message but don't include UUID
+                pass  # Just skip it - don't include non-approved UUID fields
+            elif isinstance(value, str):
+                # Scrub UUIDs from the string value
+                scrubbed = redact_phi(value)
+                if scrubbed != value:  # If UUIDs were scrubbed, note it
+                    pass  # Skip non-approved fields with UUIDs
+            # For other types, we just skip non-approved fields
     
     # Build the log message with approved fields appended
     if approved_fields:
@@ -242,8 +267,7 @@ def log_safely(logger: logging.Logger, level: int, message: str, *args, **kwargs
     
     # Add exc_info back if it was present
     if exc_info:
-        other_kwargs["exc_info"] = exc_info
+        standard_logging_kwargs["exc_info"] = exc_info
     
-    # Log with only standard logging kwargs (exc_info, extra, etc.)
-    # Note: Python's logging doesn't accept arbitrary kwargs, so we include approved fields in message
-    logger.log(level, safe_message, *safe_args, **other_kwargs)
+    # Log with only standard logging kwargs
+    logger.log(level, safe_message, *safe_args, **standard_logging_kwargs)
