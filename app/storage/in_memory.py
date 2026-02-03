@@ -1,9 +1,9 @@
 """In-memory storage implementation using dictionaries"""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid5, NAMESPACE_DNS
 from app.models.encounter import Encounter, EncounterCreate, EncounterFilter
 from app.models.audit import AuditEvent, AuditFilter
 
@@ -27,11 +27,11 @@ class InMemoryStorage:
         self._encounters_by_provider: Dict[UUID, List[UUID]] = {}  # provider_id -> [encounter_ids]
         
         # Audit trail storage
-        self._audit_events: Dict[str, AuditEvent] = {}
-        self._audit_by_resource: Dict[str, List[str]] = {}  # resource_id -> [event_ids]
+        self._audit_events: Dict[UUID, AuditEvent] = {}
+        self._audit_by_resource: Dict[str, List[UUID]] = {}  # resource_id -> [event_ids]
 
     def create_encounter(
-        self, encounter_data: EncounterCreate, created_by: str
+        self, encounter_data: EncounterCreate, created_by: str | UUID
     ) -> Encounter:
         """
         Create a new encounter record.
@@ -44,14 +44,17 @@ class InMemoryStorage:
             Created Encounter with generated ID
         """
         encounter_id = uuid.uuid4()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
+        
+        # Convert created_by to UUID if it's a string
+        created_by_uuid = UUID(created_by) if isinstance(created_by, str) else created_by
         
         encounter = Encounter(
             encounter_id=encounter_id,
             **encounter_data.model_dump(),
             created_at=now,
             updated_at=now,
-            created_by=created_by,
+            created_by=created_by_uuid,
         )
         
         # Store in primary storage
@@ -112,10 +115,18 @@ class InMemoryStorage:
             candidates = [e for e in candidates if e.encounter_type == filters.encounter_type]
         
         if filters.start_date:
-            candidates = [e for e in candidates if e.encounter_date >= filters.start_date]
+            # Normalize timezone for comparison
+            start_date = filters.start_date
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+            candidates = [e for e in candidates if e.encounter_date >= start_date]
         
         if filters.end_date:
-            candidates = [e for e in candidates if e.encounter_date <= filters.end_date]
+            # Normalize timezone for comparison
+            end_date = filters.end_date
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
+            candidates = [e for e in candidates if e.encounter_date <= end_date]
         
         return candidates
 
@@ -124,7 +135,7 @@ class InMemoryStorage:
         event_type: str,
         resource_type: str,
         resource_id: str | UUID,
-        user_id: str,
+        user_id: str | UUID,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         additional_data: Optional[dict] = None,
@@ -136,7 +147,7 @@ class InMemoryStorage:
             event_type: Type of event (e.g., 'encounter_created', 'encounter_accessed')
             resource_type: Type of resource (e.g., 'encounter')
             resource_id: ID of the resource
-            user_id: User who performed the action
+            user_id: User who performed the action (UUID or string that can be converted to UUID)
             ip_address: Optional IP address
             user_agent: Optional user agent
             additional_data: Optional additional context
@@ -144,18 +155,30 @@ class InMemoryStorage:
         Returns:
             Created AuditEvent
         """
-        event_id = f"audit_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow()
+        event_id = uuid.uuid4()
+        now = datetime.now(timezone.utc)
         
         # Convert resource_id to string if it's a UUID
         resource_id_str = str(resource_id) if isinstance(resource_id, UUID) else resource_id
+        
+        # Convert user_id to UUID if it's a string
+        # Use deterministic UUID generation for string user_ids (e.g., "admin" -> consistent UUID)
+        if isinstance(user_id, str):
+            try:
+                # Try to parse as UUID first
+                user_id_uuid = UUID(user_id)
+            except ValueError:
+                # If not a valid UUID, generate a deterministic UUID from the string
+                user_id_uuid = uuid5(NAMESPACE_DNS, user_id)
+        else:
+            user_id_uuid = user_id
         
         event = AuditEvent(
             event_id=event_id,
             event_type=event_type,
             resource_type=resource_type,
             resource_id=resource_id_str,
-            user_id=user_id,
+            user_id=user_id_uuid,
             timestamp=now,
             ip_address=ip_address,
             user_agent=user_agent,
@@ -203,10 +226,18 @@ class InMemoryStorage:
             candidates = [e for e in candidates if e.event_type == filters.event_type]
         
         if filters.start_date:
-            candidates = [e for e in candidates if e.timestamp >= filters.start_date]
+            # Normalize timezone for comparison
+            start_date = filters.start_date
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+            candidates = [e for e in candidates if e.timestamp >= start_date]
         
         if filters.end_date:
-            candidates = [e for e in candidates if e.timestamp <= filters.end_date]
+            # Normalize timezone for comparison
+            end_date = filters.end_date
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
+            candidates = [e for e in candidates if e.timestamp <= end_date]
         
         return candidates
 

@@ -1,6 +1,7 @@
 """API dependencies (authentication, etc.)"""
 
 from typing import Optional
+from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.security import decode_access_token
@@ -36,8 +37,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    user_id: Optional[str] = payload.get("sub")
-    if user_id is None:
+    user_id_str: Optional[str] = payload.get("sub")
+    if user_id_str is None:
         error_msg = "Token missing user identifier"
         safe_msg = sanitize_error_message(error_msg)
         raise HTTPException(
@@ -46,7 +47,21 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    return {"user_id": user_id, **payload}
+    # Convert string user_id from JWT to UUID
+    try:
+        user_id = UUID(user_id_str)
+    except ValueError:
+        # If user_id is not a valid UUID, try to use it as-is (for backward compatibility)
+        # But in this system, user_id should always be a UUID
+        error_msg = "Invalid user identifier format"
+        safe_msg = sanitize_error_message(error_msg)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=safe_msg,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return {"user_id": user_id, "user_id_str": user_id_str, **payload}
 
 
 def get_client_ip(request) -> Optional[str]:

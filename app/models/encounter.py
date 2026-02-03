@@ -63,7 +63,20 @@ class Encounter(EncounterBase):
     encounter_id: UUID = Field(..., description="Unique encounter identifier (UUID)")
     created_at: datetime = Field(..., description="When the record was created")
     updated_at: datetime = Field(..., description="When the record was last updated")
-    created_by: str = Field(..., description="User who created the record")
+    created_by: UUID = Field(..., description="User who created the record (UUID)")
+
+    @field_validator("created_by", mode="before")
+    @classmethod
+    def validate_created_by_uuid(cls, v) -> UUID:
+        """Validate that created_by is a valid UUID"""
+        if isinstance(v, str):
+            try:
+                return UUID(v)
+            except ValueError:
+                raise ValueError(f"Invalid UUID format: {v}")
+        if isinstance(v, UUID):
+            return v
+        raise ValueError(f"created_by must be a UUID, got {type(v)}")
 
     model_config = {"json_schema_extra": {"example": {
         "encounter_id": "550e8400-e29b-41d4-a716-446655440010",

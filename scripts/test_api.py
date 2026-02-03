@@ -42,6 +42,7 @@ async def create_encounter(
     encounter_type: EncounterType,
     encounter_date: datetime,
     clinical_data: Dict[str, Any],
+    expect_error: bool = False,
 ) -> Dict[str, Any]:
     """Create a new encounter"""
     payload = {
@@ -59,6 +60,45 @@ async def create_encounter(
     )
     
     if response.status_code != 201:
+        if expect_error:
+            # Return the error response for validation testing
+            return {"status_code": response.status_code, "detail": response.json()}
+        print(f"❌ Failed to create encounter: {response.status_code}")
+        print(response.text)
+        raise Exception(f"Failed to create encounter: {response.status_code}")
+    
+    return response.json()
+
+
+async def create_encounter_with_type(
+    client: httpx.AsyncClient,
+    token: str,
+    patient_id: str,
+    provider_id: str,
+    encounter_type: str,  # Allow string for testing invalid types
+    encounter_date: datetime,
+    clinical_data: Dict[str, Any],
+    expect_error: bool = False,
+) -> Dict[str, Any]:
+    """Create a new encounter with custom encounter_type (for testing)"""
+    payload = {
+        "patient_id": patient_id,
+        "provider_id": provider_id,
+        "encounter_date": encounter_date.isoformat(),
+        "encounter_type": encounter_type,  # Can be invalid for testing
+        "clinical_data": clinical_data,
+    }
+    
+    response = await client.post(
+        f"{API_BASE}/encounters",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload,
+    )
+    
+    if response.status_code != 201:
+        if expect_error:
+            # Return the error response for validation testing
+            return {"status_code": response.status_code, "detail": response.json()}
         print(f"❌ Failed to create encounter: {response.status_code}")
         print(response.text)
         raise Exception(f"Failed to create encounter: {response.status_code}")
@@ -202,6 +242,99 @@ async def main():
             print(f"  ✅ Created encounter {encounter['encounter_id']} for patient {patient_id}")
         
         print(f"\n✅ Successfully created {len(created_encounters)} encounters")
+        
+        # Step 2.5: Test validation - try to create encounter with invalid IDs
+        print("\n🧪 Testing validation (invalid patient/provider IDs)...")
+        
+        # Test with invalid patient ID (valid UUID format but not in known list)
+        invalid_patient_id = "550e8400-e29b-41d4-a716-446655449999"  # Valid UUID format, not in known list
+        valid_provider_id = providers[0]
+        
+        result = await create_encounter(
+            client,
+            token,
+            invalid_patient_id,
+            valid_provider_id,
+            EncounterType.INITIAL_ASSESSMENT,
+            datetime.now(timezone.utc),
+            {"test": "data"},
+            expect_error=True,
+        )
+        
+        if result.get("status_code") in [400, 422]:
+            error_detail = str(result.get("detail", ""))
+            if "patient_id" in error_detail.lower() or "known patients" in error_detail.lower():
+                print(f"  ✅ Correctly rejected invalid patient_id (status: {result['status_code']})")
+            else:
+                print(f"  ⚠️  Got error but unexpected message: {error_detail[:100]}")
+        else:
+            print(f"  ❌ ERROR: Should have rejected invalid patient_id! Got status: {result.get('status_code')}")
+        
+        # Test with invalid provider ID (valid UUID format but not in known list)
+        valid_patient_id = patients[0]
+        invalid_provider_id = "750e8400-e29b-41d4-a716-446655449999"  # Valid UUID format, not in known list
+        
+        result = await create_encounter(
+            client,
+            token,
+            valid_patient_id,
+            invalid_provider_id,
+            EncounterType.INITIAL_ASSESSMENT,
+            datetime.now(timezone.utc),
+            {"test": "data"},
+            expect_error=True,
+        )
+        
+        if result.get("status_code") in [400, 422]:
+            error_detail = str(result.get("detail", ""))
+            if "provider_id" in error_detail.lower() or "known providers" in error_detail.lower():
+                print(f"  ✅ Correctly rejected invalid provider_id (status: {result['status_code']})")
+            else:
+                print(f"  ⚠️  Got error but unexpected message: {error_detail[:100]}")
+        else:
+            print(f"  ❌ ERROR: Should have rejected invalid provider_id! Got status: {result.get('status_code')}")
+        
+        # Test with invalid UUID format
+        result = await create_encounter(
+            client,
+            token,
+            "not-a-uuid",
+            valid_provider_id,
+            EncounterType.INITIAL_ASSESSMENT,
+            datetime.now(timezone.utc),
+            {"test": "data"},
+            expect_error=True,
+        )
+        
+        if result.get("status_code") == 422:  # Pydantic validation error
+            error_detail = str(result.get("detail", ""))
+            if "uuid" in error_detail.lower() or "invalid" in error_detail.lower():
+                print(f"  ✅ Correctly rejected invalid UUID format (status: {result['status_code']})")
+            else:
+                print(f"  ⚠️  Got validation error but unexpected message: {error_detail[:100]}")
+        else:
+            print(f"  ❌ ERROR: Should have rejected invalid UUID format! Got status: {result.get('status_code')}")
+        
+        # Test with invalid encounter_type
+        result = await create_encounter_with_type(
+            client,
+            token,
+            valid_patient_id,
+            valid_provider_id,
+            "BAD_TYPE",  # Invalid encounter type
+            datetime.now(timezone.utc),
+            {"test": "data"},
+            expect_error=True,
+        )
+        
+        if result.get("status_code") == 422:  # Pydantic validation error
+            error_detail = str(result.get("detail", ""))
+            if "encounter_type" in error_detail.lower() or "bad_type" in error_detail.lower() or "enum" in error_detail.lower():
+                print(f"  ✅ Correctly rejected invalid encounter_type (status: {result['status_code']})")
+            else:
+                print(f"  ⚠️  Got validation error but unexpected message: {error_detail[:100]}")
+        else:
+            print(f"  ❌ ERROR: Should have rejected invalid encounter_type! Got status: {result.get('status_code')}")
         
         # Step 3: Query for encounters
         print("\n🔍 Querying for encounters...")

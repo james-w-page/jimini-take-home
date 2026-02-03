@@ -1,6 +1,7 @@
 """Authentication routes"""
 
 from datetime import timedelta
+from uuid import UUID
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
@@ -17,12 +18,12 @@ security_basic = HTTPBasic()
 # In production, passwords should be hashed and stored securely
 MOCK_USERS = {
     "admin": {
-        "user_id": "admin",
+        "user_id": UUID("850e8400-e29b-41d4-a716-446655440000"),  # UUID for admin user
         "hashed_password": "$2b$12$2d/PSQeAC16Gfjq2tCXp/OJxTGwuWP.WV9YzcFQ8rVG9pdjGsbe5O",  # "admin"
         "email": "admin@example.com",
     },
     "provider1": {
-        "user_id": "provider1",
+        "user_id": UUID("850e8400-e29b-41d4-a716-446655440001"),  # UUID for provider1 user
         "hashed_password": "$2b$12$2d/PSQeAC16Gfjq2tCXp/OJxTGwuWP.WV9YzcFQ8rVG9pdjGsbe5O",  # "admin"
         "email": "provider1@example.com",
     },
@@ -89,8 +90,10 @@ async def login(credentials: HTTPBasicCredentials = Depends(security_basic)):
     
     # Create access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    # Convert UUID to string for JWT token (JWT doesn't support UUID type directly)
+    user_id_str = str(user["user_id"])
     access_token = create_access_token(
-        data={"sub": user["user_id"], "email": user["email"]},
+        data={"sub": user_id_str, "email": user["email"]},
         expires_delta=access_token_expires,
     )
     

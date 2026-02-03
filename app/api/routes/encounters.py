@@ -140,25 +140,46 @@ async def get_encounter(
                 detail=safe_msg,
             )
         
-        # Apply filters if provided
-        filters = EncounterFilter(
-            patient_id=patient_id,
-            provider_id=provider_id,
-            encounter_type=encounter_type,
-            start_date=start_date,
-            end_date=end_date,
-        )
+        # Apply filters if provided - check if this encounter matches the filter criteria
+        if patient_id and encounter.patient_id != patient_id:
+            error_msg = "Encounter does not match filter criteria"
+            safe_msg = sanitize_error_message(error_msg)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=safe_msg,
+            )
         
-        # If filters are provided, check if this encounter matches
-        if any([patient_id, provider_id, encounter_type, start_date, end_date]):
-            matching = storage.list_encounters(filters)
-            if encounter not in matching:
-                error_msg = "Encounter does not match filter criteria"
-                safe_msg = sanitize_error_message(error_msg)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=safe_msg,
-                )
+        if provider_id and encounter.provider_id != provider_id:
+            error_msg = "Encounter does not match filter criteria"
+            safe_msg = sanitize_error_message(error_msg)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=safe_msg,
+            )
+        
+        if encounter_type and encounter.encounter_type != encounter_type:
+            error_msg = "Encounter does not match filter criteria"
+            safe_msg = sanitize_error_message(error_msg)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=safe_msg,
+            )
+        
+        if start_date and encounter.encounter_date < start_date:
+            error_msg = "Encounter does not match filter criteria"
+            safe_msg = sanitize_error_message(error_msg)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=safe_msg,
+            )
+        
+        if end_date and encounter.encounter_date > end_date:
+            error_msg = "Encounter does not match filter criteria"
+            safe_msg = sanitize_error_message(error_msg)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=safe_msg,
+            )
         
         # Log audit event
         ip_address = get_client_ip(request)

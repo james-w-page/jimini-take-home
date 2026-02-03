@@ -2,6 +2,7 @@
 
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from app.api.deps import get_current_user
 from app.models.audit import AuditEvent, AuditFilter
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def get_encounter_audit_trail(
     current_user: dict = Depends(get_current_user),
     resource_id: Optional[str] = Query(None, description="Filter by resource ID"),
-    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user ID (UUID)"),
     event_type: Optional[str] = Query(None, description="Filter by event type"),
     start_date: Optional[datetime] = Query(None, description="Start of date range"),
     end_date: Optional[datetime] = Query(None, description="End of date range"),
