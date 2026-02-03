@@ -4,7 +4,7 @@ from typing import Optional
 from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, status, Depends, Query
-from app.api.deps import get_current_user
+from app.api.deps import get_current_admin
 from app.models.audit import AuditEvent, AuditFilter
 from app.storage.in_memory import storage
 from app.core.phi_redaction import sanitize_error_message, log_safely
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/encounters", response_model=list[AuditEvent])
 async def get_encounter_audit_trail(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_admin),
     resource_id: Optional[str] = Query(None, description="Filter by resource ID"),
     user_id: Optional[UUID] = Query(None, description="Filter by user ID (UUID)"),
     event_type: Optional[str] = Query(None, description="Filter by event type"),

@@ -61,7 +61,36 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    return {"user_id": user_id, "user_id_str": user_id_str, **payload}
+    # Extract role from token payload
+    role = payload.get("role", "USER")
+    
+    return {"user_id": user_id, "user_id_str": user_id_str, "role": role, **payload}
+
+
+async def get_current_admin(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    Dependency to ensure the current user is an admin.
+    
+    Args:
+        current_user: Current authenticated user from get_current_user
+    
+    Returns:
+        User information if admin
+    
+    Raises:
+        HTTPException: If user is not an admin
+    """
+    if current_user.get("role") != "ADMIN":
+        error_msg = "Admin access required"
+        safe_msg = sanitize_error_message(error_msg)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=safe_msg,
+        )
+    
+    return current_user
 
 
 def get_client_ip(request) -> Optional[str]:

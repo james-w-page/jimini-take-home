@@ -21,11 +21,13 @@ MOCK_USERS = {
         "user_id": UUID("850e8400-e29b-41d4-a716-446655440000"),  # UUID for admin user
         "hashed_password": "$2b$12$2d/PSQeAC16Gfjq2tCXp/OJxTGwuWP.WV9YzcFQ8rVG9pdjGsbe5O",  # "admin"
         "email": "admin@example.com",
+        "role": "ADMIN",
     },
     "provider1": {
         "user_id": UUID("850e8400-e29b-41d4-a716-446655440001"),  # UUID for provider1 user
         "hashed_password": "$2b$12$2d/PSQeAC16Gfjq2tCXp/OJxTGwuWP.WV9YzcFQ8rVG9pdjGsbe5O",  # "admin"
         "email": "provider1@example.com",
+        "role": "USER",
     },
 }
 
@@ -93,7 +95,7 @@ async def login(credentials: HTTPBasicCredentials = Depends(security_basic)):
     # Convert UUID to string for JWT token (JWT doesn't support UUID type directly)
     user_id_str = str(user["user_id"])
     access_token = create_access_token(
-        data={"sub": user_id_str, "email": user["email"]},
+        data={"sub": user_id_str, "email": user["email"], "role": user["role"]},
         expires_delta=access_token_expires,
     )
     
