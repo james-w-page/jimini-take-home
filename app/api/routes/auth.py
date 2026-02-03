@@ -18,12 +18,12 @@ security_basic = HTTPBasic()
 MOCK_USERS = {
     "admin": {
         "user_id": "admin",
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # "admin"
+        "hashed_password": "$2b$12$2d/PSQeAC16Gfjq2tCXp/OJxTGwuWP.WV9YzcFQ8rVG9pdjGsbe5O",  # "admin"
         "email": "admin@example.com",
     },
     "provider1": {
         "user_id": "provider1",
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # "admin"
+        "hashed_password": "$2b$12$2d/PSQeAC16Gfjq2tCXp/OJxTGwuWP.WV9YzcFQ8rVG9pdjGsbe5O",  # "admin"
         "email": "provider1@example.com",
     },
 }
